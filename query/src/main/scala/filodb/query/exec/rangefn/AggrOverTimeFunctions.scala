@@ -707,9 +707,7 @@ class PredictLinearChunkedFunctionD(funcParams: Seq[Any]) extends PredictLinearC
     var startRowNum = tsReader.binarySearch(tsVector, startTime) & 0x7fffffff
     val endRowNum = Math.min(tsReader.ceilingIndex(tsVector, endTime), info.numRows - 1)
     val itTimestamp = tsReader.iterate(tsVector, startRowNum)
-    //Change this
     val it = valueReader.asDoubleReader.iterate(valueVector, startRowNum)
-//    val it = bv.DoubleVectorDataReader64.iterate(valueVector, startRowNum)
 
     if (startRowNum <= endRowNum) {
       while (startRowNum <= endRowNum) {
@@ -718,14 +716,12 @@ class PredictLinearChunkedFunctionD(funcParams: Seq[Any]) extends PredictLinearC
         println(s"Nexttime $nexttime nextvalue $nextvalue startrow $startRowNum")
         // There are many possible values of NaN.  Use a function to ignore them reliably.
         if (!JLDouble.isNaN(nextvalue)) {
-          //        println(s"Entering $nextvalue Time $nexttime")
           if(interceptTime.isNaN()) {
 
             interceptTime = nexttime
           }
-          val x = (nexttime-interceptTime)/1000.0
+          val x = (nexttime-endTime)/1000.0
           if (sumY.isNaN) {
-            //          println(s"First ${nextvalue}t")
             sumY = nextvalue
             sumX = x
             sumXY = x * nextvalue
