@@ -310,6 +310,7 @@ object RangeFunction {
       case Some(StdVarOverTime)   => () => new StdVarOverTimeChunkedFunctionL
       case Some(Changes)          => () => new ChangesChunkedFunctionL
       case Some(QuantileOverTime) => () => new QuantileOverTimeChunkedFunctionL(funcParams)
+
       case _                      => iteratingFunction(func, funcParams)
     }
   }
@@ -337,6 +338,7 @@ object RangeFunction {
       case Some(StdVarOverTime)   => () => new StdVarOverTimeChunkedFunctionD
       case Some(Changes)          => () => new ChangesChunkedFunctionD()
       case Some(QuantileOverTime) => () => new QuantileOverTimeChunkedFunctionD(funcParams)
+      case Some(PredictLinear)    => () => new PredictLinearChunkedFunctionD(funcParams)
       case _                      => iteratingFunction(func, funcParams)
     }
   }

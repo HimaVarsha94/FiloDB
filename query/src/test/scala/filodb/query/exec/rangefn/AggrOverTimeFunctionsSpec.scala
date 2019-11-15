@@ -393,4 +393,51 @@ class AggrOverTimeFunctionsSpec extends RawDataWindowingSpec {
       }
     }
   }
+  it("should correctly calculate predict_linear") {
+    val data = (1 to 500).map(_.toDouble)
+    val rv2 = timeValueRV(data)
+    val duration = 50
+    def predict_linear(s: Seq[Double]): Double = {
+      val n = s.length.toDouble
+      var x = 0.0
+      var sumY = 0.0
+      var sumX = 0.0
+      var sumXY = 0.0
+      var sumX2 = 0.0
+      val interceptTime = 0.0
+      if (n >= 2) {
+        for(i <- 0 until n.toInt) {
+          sumY += s(i)
+          sumX += x
+          sumXY += x * s(i)
+          sumX2 += x * x
+          val y = s(i)
+//          println(s" x $x y $y")
+          x += 1
+        }
+        val covXY = sumXY - (sumX*sumY).toDouble/n.toDouble
+        val varX = sumX2 - (sumX*sumX).toDouble/n.toDouble
+        val slope = covXY.toDouble / varX.toDouble
+        val intercept = sumY.toDouble/n - (slope*sumX).toDouble/n.toDouble
+        println(s"inside once intercept $intercept Slope: $slope")
+        println(s"counter $n Utility fn sumX $sumX sumY $sumY")
+        val first = s(0)
+        println(s"First $first")
+        slope*duration + intercept
+      } else {
+        Double.NaN
+      }
+    }
+    (0 until numIterations).foreach { x =>
+      val windowSize = rand.nextInt(100) + 10
+      val step = rand.nextInt(50) + 5
+//      val windowSize = 1000
+//      val step = 10
+      info(s"  iteration $x  windowSize=$windowSize step=$step")
+
+      val minChunkedIt = chunkedWindowIt(data, rv2, new PredictLinearChunkedFunctionD(Seq(duration)), windowSize, step)
+      val aggregated2 = minChunkedIt.map(_.getDouble(1)).toBuffer
+      aggregated2 shouldEqual data.sliding(windowSize, step).map(_.drop(1)).map(predict_linear).toBuffer
+    }
+  }
 }
