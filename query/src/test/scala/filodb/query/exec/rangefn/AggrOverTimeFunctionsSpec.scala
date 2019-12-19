@@ -462,7 +462,6 @@ class AggrOverTimeFunctionsSpec extends RawDataWindowingSpec {
       val res = data.sliding(windowSize, step).map(_.drop(1)).map(holt_winters).toBuffer
       for (i <- res.indices) {
         if (res(i).isNaN) {
-          println("Inside Nan")
           aggregated2(i).isNaN shouldEqual true
         } else {
           aggregated2(i) shouldBe (res(i) +- 0.0000000001)
@@ -518,5 +517,30 @@ class AggrOverTimeFunctionsSpec extends RawDataWindowingSpec {
       }
       aggregated2 shouldEqual(res)
     }
+  }
+
+  it("it should correctly calculate zscore") {
+    val data = Seq(15900.0, 15920.0, 15940.0, 15960.0, 15980.0, 16000.0, 16020.0)
+    val data2 = Seq(-15900.0, -15920.0, -15940.0, -15960.0, -15980.0, -16000.0)
+    val data3 = Seq(15900.0, 15920.0, 15940.0, 15960.0, 15980.0, 16000.0, Double.NaN)
+    val params = Seq(StaticFuncArgs(0.01, RangeParams(100,20,500)))
+
+    var rv = timeValueRV(data)
+    val chunkedIt = new ChunkedWindowIteratorD(rv, 160000, 100000, 180000, 100000,
+      new ZScoreChunkedFunctionD(), queryConfig)
+    val aggregated = chunkedIt.map(_.getDouble(1)).toBuffer
+    aggregated(0) shouldBe 1.5
+
+    var rv2 = timeValueRV(data2)
+    val chunkedIt2 = new ChunkedWindowIteratorD(rv2, 160000, 100000, 180000, 100000,
+      new ZScoreChunkedFunctionD(), queryConfig)
+    val aggregated2 = chunkedIt2.map(_.getDouble(1)).toBuffer
+    aggregated2(0) shouldBe (-1.463850109429032 +- 0.0000000001)
+
+    var rv3 = timeValueRV(data3)
+    val chunkedIt3 = new ChunkedWindowIteratorD(rv3, 160000, 100000, 180000, 100000,
+      new ZScoreChunkedFunctionD(), queryConfig)
+    val aggregated3 = chunkedIt3.map(_.getDouble(1)).toBuffer
+    aggregated3(0).isNaN shouldBe true
   }
 }

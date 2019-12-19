@@ -831,6 +831,10 @@ class HoltWintersChunkedFunctionL(funcParams: Seq[FuncArgs]) extends HoltWinters
   }
 }
 
+/**
+  * Predicts the value of time series t seconds from now based on range vector
+  * Refer https://en.wikipedia.org/wiki/Simple_linear_regression
+**/
 abstract class PredictLinearChunkedFunction(funcParams: Seq[Any],
                                             var sumX: Double = Double.NaN,
                                             var sumY: Double = Double.NaN,
@@ -920,5 +924,50 @@ class PredictLinearChunkedFunctionL(funcParams: Seq[Any]) extends PredictLinearC
       counter += 1
       startRowNum += 1
     }
+  }
+}
+
+
+abstract class ZScoreChunkedFunction(var stdOverTimeChunkedFunction: StdDevOverTimeChunkedFunctionD = null,
+                                     var avgOverTimeChunkedFunction: AvgOverTimeChunkedFunctionD = null,
+                                     var lastSampleChunkedFunction: LastSampleChunkedFunctionWithNanD = null)
+                                     extends ChunkedRangeFunction[TransientRow] {
+
+  override final def reset(): Unit = { stdOverTimeChunkedFunction = new StdDevOverTimeChunkedFunctionD()
+                                      avgOverTimeChunkedFunction = new AvgOverTimeChunkedFunctionD()
+                                      lastSampleChunkedFunction = new LastSampleChunkedFunctionWithNanD() }
+
+  final def apply(endTimestamp: Long, sampleToEmit: TransientRow): Unit = {
+    val stdDevTransientRow, avgTransientRow, lastSampleTransientRow = new TransientRow()
+    stdOverTimeChunkedFunction.apply(endTimestamp, stdDevTransientRow)
+    avgOverTimeChunkedFunction.apply(endTimestamp, avgTransientRow)
+    lastSampleChunkedFunction.apply(endTimestamp, lastSampleTransientRow)
+    val stdDev = stdDevTransientRow.value
+    val avg = avgTransientRow.value
+    val lastSample = lastSampleTransientRow.value
+    val zscore = (lastSample - avg)/stdDev
+    sampleToEmit.setValues(endTimestamp, zscore)
+  }
+}
+
+class ZScoreChunkedFunctionD() extends ZScoreChunkedFunction()
+  with ChunkedRangeFunction[TransientRow] {
+
+  override final def addChunks(tsVectorAcc: MemoryReader, tsVector: BinaryVector.BinaryVectorPtr,
+                               tsReader: bv.LongVectorDataReader, valueVectorAcc: MemoryReader,
+                               valueVector: BinaryVector.BinaryVectorPtr, valueReader: VectorDataReader,
+                               startTime: Long, endTime: Long, info: ChunkSetInfoReader,
+                               queryConfig: QueryConfig): Unit = {
+    //Only support StaticFuncArgs for now as we don't have time to get value from scalar vector
+
+    val startRowNum = tsReader.binarySearch(tsVectorAcc, tsVector, startTime) & 0x7fffffff
+    val endRowNum = Math.min(tsReader.ceilingIndex(tsVectorAcc, tsVector, endTime), info.numRows - 1)
+    stdOverTimeChunkedFunction.addTimeDoubleChunks(valueVectorAcc, valueVector, valueReader.asDoubleReader,
+                                                   startRowNum, endRowNum)
+    avgOverTimeChunkedFunction.addTimeDoubleChunks(valueVectorAcc, valueVector, valueReader.asDoubleReader,
+                                                   startRowNum, endRowNum)
+    lastSampleChunkedFunction.addChunks(tsVectorAcc, tsVector, tsReader, valueVectorAcc, valueVector, valueReader,
+                        startTime, endTime, info, queryConfig)
+
   }
 }
